@@ -1,13 +1,36 @@
 import websocket
 import json
 import statistics
+import threading
+from flask import Flask
 
+# ----------------------------
+# FLASK SERVER (Render fix)
+# ----------------------------
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Trading Bot is LIVE"
+
+def run_server():
+    app.run(host="0.0.0.0", port=10000)
+
+
+# ----------------------------
+# TRADING STATE
+# ----------------------------
 prices = []
+
 balance = 1000
 wins = 0
 losses = 0
 trades = 0
 
+
+# ----------------------------
+# STRATEGY LOGIC
+# ----------------------------
 def trade_logic():
     global balance, wins, losses, trades
 
@@ -30,9 +53,11 @@ def trade_logic():
 
     if signal != "NO_TRADE":
 
-        # paper trade simulation
+        # PAPER TRADE SIMULATION
         import random
         result = random.choice(["WIN", "LOSS"])
+
+        trades += 1
 
         if result == "WIN":
             balance += 10
@@ -41,13 +66,15 @@ def trade_logic():
             balance -= 10
             losses += 1
 
-        trades += 1
-
         print("Balance:", balance)
         print("Wins:", wins, "Losses:", losses)
+        print("Trades:", trades)
         print("----------------------")
 
 
+# ----------------------------
+# DERIV WEBSOCKET HANDLERS
+# ----------------------------
 def on_message(ws, message):
     data = json.loads(message)
 
@@ -61,6 +88,8 @@ def on_message(ws, message):
 
 
 def on_open(ws):
+    print("Connected to Deriv WebSocket")
+
     req = {
         "ticks": "R_75"
     }
@@ -68,12 +97,28 @@ def on_open(ws):
     ws.send(json.dumps(req))
 
 
-print("Connecting to Deriv...")
+# ----------------------------
+# START BOT
+# ----------------------------
+def start_bot():
+    print("Connecting to Deriv...")
 
-ws = websocket.WebSocketApp(
-    "wss://ws.binaryws.com/websockets/v3?app_id=1089",
-    on_open=on_open,
-    on_message=on_message
-)
+    ws = websocket.WebSocketApp(
+        "wss://ws.binaryws.com/websockets/v3?app_id=1089",
+        on_open=on_open,
+        on_message=on_message
+    )
 
-ws.run_forever()
+    ws.run_forever()
+
+
+# ----------------------------
+# RUN BOTH SERVER + BOT
+# ----------------------------
+if __name__ == "__main__":
+
+    # Start web server for Render
+    threading.Thread(target=run_server).start()
+
+    # Start trading bot
+    start_bot()
