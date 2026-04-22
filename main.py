@@ -1,44 +1,38 @@
-import random
-import time
+import websocket
+import json
+import statistics
 
+prices = []
 balance = 1000
 wins = 0
 losses = 0
 trades = 0
 
-print("Trading Bot Started")
+def trade_logic():
+    global balance, wins, losses, trades
 
-while trades < 10:
+    if len(prices) < 5:
+        return
 
-    prices = [
-        random.randint(100,200),
-        random.randint(100,200),
-        random.randint(100,200),
-        random.randint(100,200),
-        random.randint(100,200)
-    ]
+    recent = prices[-5:]
+    avg = statistics.mean(recent)
+    current = recent[-1]
 
-    up = 0
-    down = 0
+    signal = "NO_TRADE"
 
-    for i in range(len(prices)-1):
-        if prices[i+1] > prices[i]:
-            up += 1
-        elif prices[i+1] < prices[i]:
-            down += 1
-
-    if up >= 3:
+    if current > avg:
         signal = "BUY"
-    elif down >= 3:
+    elif current < avg:
         signal = "SELL"
-    else:
-        signal = "NO_TRADE"
 
+    print("Prices:", recent)
     print("Signal:", signal)
 
     if signal != "NO_TRADE":
 
-        result = random.choice(["WIN","LOSS"])
+        # paper trade simulation
+        import random
+        result = random.choice(["WIN", "LOSS"])
 
         if result == "WIN":
             balance += 10
@@ -49,8 +43,37 @@ while trades < 10:
 
         trades += 1
 
-    time.sleep(1)
+        print("Balance:", balance)
+        print("Wins:", wins, "Losses:", losses)
+        print("----------------------")
 
-print("Balance:", balance)
-print("Wins:", wins)
-print("Losses:", losses)
+
+def on_message(ws, message):
+    data = json.loads(message)
+
+    if "tick" in data:
+        price = float(data["tick"]["quote"])
+        prices.append(price)
+
+        print("Live Price:", price)
+
+        trade_logic()
+
+
+def on_open(ws):
+    req = {
+        "ticks": "R_75"
+    }
+
+    ws.send(json.dumps(req))
+
+
+print("Connecting to Deriv...")
+
+ws = websocket.WebSocketApp(
+    "wss://ws.binaryws.com/websockets/v3?app_id=1089",
+    on_open=on_open,
+    on_message=on_message
+)
+
+ws.run_forever()
